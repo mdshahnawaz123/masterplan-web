@@ -73,14 +73,32 @@ async function uploadToOSS(token, filePath, fileName) {
   }
 
   // Step 2: Upload file to S3
-  try {
-    await axios.put(signedUrl, fileData, {
-      headers: { 'Content-Type': 'application/octet-stream' },
-      maxBodyLength: Infinity, maxContentLength: Infinity
-    });
-    console.log('[APS] File uploaded to S3');
-  } catch (e) {
-    throw new Error(`S3 upload failed (${e.response?.status}): ${e.message}`);
+  let retries = 3;
+  let lastError;
+  while (retries > 0) {
+    try {
+      await axios.put(signedUrl, fileData, {
+        headers: { 'Content-Type': 'application/octet-stream' },
+        maxBodyLength: Infinity, maxContentLength: Infinity
+      });
+      console.log('[APS] File uploaded to S3');
+      lastError = null;
+      break;
+    } catch (e) {
+      lastError = e;
+      retries--;
+      console.log(`[APS] S3 upload failed, retrying... (${retries} left)`);
+      if (e.message.includes('EAI_AGAIN') || e.message.includes('ENOTFOUND')) {
+        // Fallback for DNS issues with s3-accelerate
+        console.log('[APS] Network DNS error detected. Falling back to standard S3 URL...');
+        signedUrl = signedUrl.replace('s3-accelerate.amazonaws.com', 's3.amazonaws.com');
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  
+  if (lastError) {
+     throw new Error(`S3 upload failed (${lastError.response?.status}): ${lastError.message}`);
   }
 
   // Step 3: Finalize
@@ -338,6 +356,7 @@ function mergeData(cadParcels, excelRows) {
   const merged = cadParcels.map(cad => {
     const ex = excelMap[cad.plot_no] || excelMap[cad.plot_no2] || {};
     return {
+      ...ex,
       plot_no:   cad.plot_no,
       plot_no2:  cad.plot_no2,
       zone:      ex.zone || inferZone(cad.plot_no),
@@ -515,6 +534,37 @@ app.get('/api/properties/:urn', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Update plot properties manually from UI
+app.post('/api/plots/update', (req, res) => {
+  const { urn, plot_no, updates } = req.body;
+  if (!plot_no || !updates) return res.status(400).json({ error: 'Missing plot_no or updates' });
+
+  // 1. Update in merged cache
+  const allMerged = loadMergedData();
+  const updateArr = (arr) => {
+    const idx = arr.findIndex(p => p.plot_no === plot_no);
+    if (idx !== -1) arr[idx] = { ...arr[idx], ...updates };
+  };
+
+  if (urn && allMerged[urn]) {
+    updateArr(allMerged[urn]);
+  } else {
+    // Fallback search across all models if URN not provided
+    Object.values(allMerged).forEach(updateArr);
+  }
+  saveJSON(MERGED_FILE, allMerged);
+
+  // 2. Update in CAD records (if matched)
+  const records = loadCadRecords();
+  records.forEach(r => {
+    const p = r.parcels.find(x => x.plot_no === plot_no);
+    if (p) Object.assign(p, updates);
+  });
+  saveJSON(CAD_RECORDS_FILE, records);
+
+  res.json({ success: true });
+});
+
 // Update coordinates for parcels (from Magic Map Sync)
 app.post('/api/plots/update-coords', (req, res) => {
   const { urn, updates } = req.body;
@@ -557,14 +607,39 @@ app.post('/api/upload-excel', upload.single('file'), (req, res) => {
   try {
     const wb    = xlsx.readFile(req.file.path);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const raw   = xlsx.utils.sheet_to_json(sheet);
 
-    console.log('[Excel] Raw columns:', Object.keys(raw[0] || {}));
-    console.log('[Excel] First row:', JSON.stringify(raw[0]));
+    // Get as 2D array to find header row dynamically
+    const rawData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+    let headerRowIdx = 0;
+    
+    for (let i = 0; i < Math.min(20, rawData.length); i++) {
+       const rowStr = (rawData[i] || []).join(' ').toLowerCase();
+       if (rowStr.includes('plot no') || rowStr.includes('zone') || rowStr.includes('gfa')) {
+          headerRowIdx = i;
+          break;
+       }
+    }
+    
+    const headers = rawData[headerRowIdx] || [];
+    const mappedRows = [];
+    
+    for (let i = headerRowIdx + 1; i < rawData.length; i++) {
+        const rowArr = rawData[i];
+        if (!rowArr || rowArr.length === 0) continue;
+        
+        const row = {};
+        headers.forEach((h, idx) => {
+            if (h) row[h] = rowArr[idx];
+        });
+        mappedRows.push(row);
+    }
+
+    console.log('[Excel] Found headers at row', headerRowIdx, ':', headers);
 
     // Flexible column mapping
-    const excelRows = raw.map(row => {
+    const excelRows = mappedRows.map(row => {
       const mapped = {
+        ...row,
         plot_no:  String(row['Plot No.'] || row['PLOT NO'] || row['Plot No'] || row['plot_no'] || row['ID'] || row['Id'] || row['id'] || '').trim() || null,
         zone:     String(row['ZONE'] || row['Zone'] || row['zone'] || row['Zone Code'] || '').trim() || null,
         land_use: String(row['LAND USE'] || row['Land Use'] || row['land_use'] || row['Land use'] || row['Description'] || row['DESCRIPTION'] || '').trim() || null,

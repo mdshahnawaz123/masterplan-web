@@ -1,0 +1,11 @@
+node_modules/
+.env
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/cad_records.json
+backend/data.json
+backend/excel_data.json
+backend/cad_data.json
+backend/cad_record.json
+.DS_Store
+dist/

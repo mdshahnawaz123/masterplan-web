@@ -1,0 +1,2272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MasterPlan Dashboard</title>
+  <meta name="description"
+    content="AutoCAD Civil3D DWG file analysis and masterplan dashboard — upload DWG or Excel to explore parcel data." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* ════════════════════════════════════════════════════════
+       DESIGN TOKENS
+    ════════════════════════════════════════════════════════ */
+    :root {
+      --bg-base: #060b17;
+      --bg-surface: #0b1225;
+      --bg-card: rgba(255, 255, 255, 0.035);
+      --bg-card-h: rgba(255, 255, 255, 0.065);
+      --cyan: #00d4ff;
+      --cyan-dim: rgba(0, 212, 255, 0.15);
+      --purple: #8b5cf6;
+      --purple-dim: rgba(139, 92, 246, 0.15);
+      --green: #10b981;
+      --green-dim: rgba(16, 185, 129, 0.15);
+      --orange: #f97316;
+      --orange-dim: rgba(249, 115, 22, 0.15);
+      --pink: #ec4899;
+      --pink-dim: rgba(236, 72, 153, 0.15);
+      --yellow: #f59e0b;
+      --yellow-dim: rgba(245, 158, 11, 0.15);
+      --red: #ef4444;
+      --txt: #f1f5f9;
+      --txt-2: #94a3b8;
+      --txt-3: #4c5d73;
+      --border: rgba(255, 255, 255, 0.07);
+      --border-act: rgba(0, 212, 255, 0.35);
+      --shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+      --r: 14px;
+      --r-sm: 9px;
+    }
+
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--txt);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(0, 212, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 800px 600px at 10% 20%, rgba(0, 212, 255, 0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 600px 500px at 90% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       NAV
+    ════════════════════════════════════════════════════════ */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: rgba(6, 11, 23, 0.88);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.75rem;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+    }
+
+    .nav-title {
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--cyan) 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-sub {
+      font-size: 0.68rem;
+      color: var(--txt-3);
+      -webkit-text-fill-color: var(--txt-3);
+      margin-top: 1px;
+    }
+
+    .nav-pills {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--txt-2);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    .pill:hover {
+      background: var(--bg-card-h);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: var(--txt);
+    }
+
+    .pill.primary {
+      background: linear-gradient(135deg, var(--cyan), #0096b8);
+      color: #000;
+      border-color: transparent;
+    }
+
+    .pill.primary:hover {
+      box-shadow: 0 4px 18px rgba(0, 212, 255, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .pill.purple {
+      background: linear-gradient(135deg, var(--purple), #6d28d9);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .pill.purple:hover {
+      box-shadow: 0 4px 18px rgba(139, 92, 246, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .pill.green {
+      background: linear-gradient(135deg, var(--green), #059669);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .pill.green:hover {
+      box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .status-dot {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    .dot-idle {
+      background: rgba(74, 90, 112, 0.2);
+      color: var(--txt-3);
+    }
+
+    .dot-active {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    .dot-cad {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       MAIN WRAPPER
+    ════════════════════════════════════════════════════════ */
+    .main {
+      position: relative;
+      z-index: 1;
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 1.75rem;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       CAD RECORD BANNER
+    ════════════════════════════════════════════════════════ */
+    #cad-banner {
+      display: none;
+      margin-bottom: 1.25rem;
+      background: rgba(0, 212, 255, 0.04);
+      border: 1px solid rgba(0, 212, 255, 0.15);
+      border-radius: var(--r);
+      padding: 1.25rem 1.5rem;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    #cad-banner.show {
+      display: flex;
+    }
+
+    .cb-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cb-icon {
+      font-size: 1.8rem;
+      color: var(--cyan);
+    }
+
+    .cb-title {
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--cyan);
+    }
+
+    .cb-sub {
+      font-size: .75rem;
+      color: var(--txt-3);
+      margin-top: 2px;
+    }
+
+    .cb-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       DROP ZONE
+    ════════════════════════════════════════════════════════ */
+    #drop-zone {
+      border: 2px dashed rgba(0, 212, 255, 0.25);
+      border-radius: var(--r);
+      background: rgba(0, 212, 255, 0.02);
+      padding: 5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all .3s ease;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    #drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(0, 212, 255, 0.06) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    #drop-zone:hover::before,
+    #drop-zone.over::before {
+      opacity: 1;
+    }
+
+    #drop-zone:hover,
+    #drop-zone.over {
+      border-color: var(--cyan);
+      background: rgba(0, 212, 255, 0.04);
+      box-shadow: 0 0 60px rgba(0, 212, 255, 0.08) inset;
+    }
+
+    .dz-icon {
+      font-size: 3.8rem;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: block;
+      margin-bottom: 1.25rem;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-8px)
+      }
+    }
+
+    .dz-title {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: .5rem;
+    }
+
+    .dz-sub {
+      color: var(--txt-2);
+      font-size: .88rem;
+      margin-bottom: 2rem;
+      max-width: 460px;
+      margin-inline: auto;
+    }
+
+    .dz-btns {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .dz-formats {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 1.75rem;
+    }
+
+    .fmt {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .fmt-dwg {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 212, 255, .25);
+    }
+
+    .fmt-dxf {
+      background: var(--purple-dim);
+      color: var(--purple);
+      border: 1px solid rgba(139, 92, 246, .25);
+    }
+
+    .fmt-xlsx {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(16, 185, 129, .25);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       PROGRESS
+    ════════════════════════════════════════════════════════ */
+    #progress-card {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border-act);
+      border-radius: var(--r);
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    #progress-card.show {
+      display: block;
+      animation: fadeUp .3s ease;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .prog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .prog-label {
+      font-size: .9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(0, 212, 255, 0.2);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .prog-pct {
+      font-size: .85rem;
+      font-weight: 800;
+      color: var(--cyan);
+    }
+
+    .prog-track {
+      height: 6px;
+      background: rgba(255, 255, 255, .05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .prog-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .5s ease;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      width: 0%;
+    }
+
+    .prog-steps {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: .7rem;
+    }
+
+    .pstep {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .82rem;
+      color: var(--txt-3);
+    }
+
+    .pstep.act {
+      color: var(--cyan);
+    }
+
+    .pstep.done {
+      color: var(--green);
+    }
+
+    .pstep .si {
+      width: 18px;
+      text-align: center;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       DASHBOARD
+    ════════════════════════════════════════════════════════ */
+    #dashboard {
+      display: none;
+    }
+
+    #dashboard.show {
+      display: block;
+      animation: fadeUp .4s ease;
+    }
+
+    .sec-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--txt-3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .sec-label::before {
+      content: '';
+      width: 3px;
+      height: 14px;
+      border-radius: 2px;
+      background: linear-gradient(to bottom, var(--cyan), var(--purple));
+    }
+
+    .sec-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+
+    /* ── KPI GRID ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media(max-width:1200px) {
+      .kpi-grid {
+        grid-template-columns: repeat(3, 1fr)
+      }
+    }
+
+    @media(max-width:640px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr)
+      }
+    }
+
+    .kpi {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.25rem 1.35rem;
+      transition: all .3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--kc, var(--cyan)), transparent);
+    }
+
+    .kpi:hover {
+      background: var(--bg-card-h);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .65rem;
+    }
+
+    .kpi-label {
+      font-size: .67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--txt-3);
+    }
+
+    .kpi-ico {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      background: var(--kib, var(--cyan-dim));
+      color: var(--kc, var(--cyan));
+    }
+
+    .kpi-val {
+      font-size: 1.75rem;
+      font-weight: 900;
+      letter-spacing: -.04em;
+      line-height: 1;
+      margin-bottom: .25rem;
+    }
+
+    .kpi-sub {
+      font-size: .68rem;
+      color: var(--txt-3);
+    }
+
+    /* ── CHARTS GRID ── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 2fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media(max-width:1100px) {
+      .charts-grid {
+        grid-template-columns: 1fr 1fr
+      }
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.4rem;
+    }
+
+    .chart-head {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--txt-3);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .chart-head i {
+      color: var(--cyan);
+    }
+
+    .chart-box {
+      position: relative;
+      height: 210px;
+    }
+
+    /* ── VIEWER + DETAIL ROW ── */
+    .mid-row {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    #viewer-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      height: 360px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .viewer-ph {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      color: var(--txt-3);
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .viewer-ph i {
+      font-size: 3rem;
+      color: rgba(0, 212, 255, 0.2);
+    }
+
+    .viewer-ph p {
+      font-size: .8rem;
+      max-width: 200px;
+    }
+
+    .detail-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.4rem;
+      overflow-y: auto;
+    }
+
+    .detail-hed {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--txt-3);
+      margin-bottom: 1.25rem;
+    }
+
+    .detail-ph {
+      text-align: center;
+      color: var(--txt-3);
+      font-size: .82rem;
+      padding: 2rem 0;
+    }
+
+    .detail-ph i {
+      font-size: 1.8rem;
+      display: block;
+      margin-bottom: .75rem;
+      color: rgba(0, 212, 255, 0.2);
+    }
+
+    .detail-no {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--cyan);
+      margin-bottom: .25rem;
+      letter-spacing: -.03em;
+    }
+
+    .d-zone {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 1.25rem;
+      font-size: .75rem;
+      font-weight: 700;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+    }
+
+    .d-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .55rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .8rem;
+    }
+
+    .d-row:last-child {
+      border-bottom: none;
+    }
+
+    .d-key {
+      color: var(--txt-3);
+    }
+
+    .d-val {
+      font-weight: 600;
+      color: var(--txt);
+    }
+
+    /* ── TABLE ── */
+    .tbl-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .tbl-head {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .tbl-title {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--txt-3);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .tbl-ctrls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .s-wrap {
+      position: relative;
+    }
+
+    .s-wrap i {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--txt-3);
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    .s-input {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px 7px 32px;
+      color: var(--txt);
+      font-family: inherit;
+      font-size: .78rem;
+      width: 190px;
+      transition: all .2s;
+    }
+
+    .s-input:focus {
+      outline: none;
+      border-color: var(--border-act);
+      background: rgba(0, 212, 255, 0.04);
+      box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.07);
+    }
+
+    .f-sel {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: var(--txt);
+      font-family: inherit;
+      font-size: .78rem;
+      cursor: pointer;
+    }
+
+    .f-sel:focus {
+      outline: none;
+      border-color: var(--border-act);
+    }
+
+    .f-sel option {
+      background: #0b1225;
+    }
+
+    .tbl-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: .67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--txt-3);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: color .2s;
+    }
+
+    th:hover,
+    th.srt {
+      color: var(--cyan);
+    }
+
+    td {
+      padding: 9px 14px;
+      font-size: .8rem;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.018);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr {
+      cursor: pointer;
+    }
+
+    .bdg {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: .68rem;
+      font-weight: 700;
+    }
+
+    .tbl-empty {
+      padding: 3rem;
+      text-align: center;
+      color: var(--txt-3);
+    }
+
+    .tbl-empty i {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: .75rem;
+      opacity: .3;
+    }
+
+    .tbl-foot {
+      padding: .85rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: .75rem;
+      color: var(--txt-3);
+    }
+
+    .pg-btn {
+      padding: 5px 11px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--txt-2);
+      font-family: inherit;
+      font-size: .74rem;
+      cursor: pointer;
+      transition: all .2s;
+    }
+
+    .pg-btn:hover {
+      border-color: var(--border-act);
+      color: var(--cyan);
+    }
+
+    /* ── MAP ── */
+    #mini-map {
+      height: 420px;
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .leaflet-container {
+      background: #0b1225 !important;
+    }
+
+    .leaflet-tile {
+      filter: brightness(0.6) saturate(0.4) hue-rotate(200deg);
+    }
+
+    .leaflet-popup-content-wrapper {
+      background: #0d1a2e;
+      color: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .leaflet-popup-tip {
+      background: #0d1a2e;
+    }
+
+    .map-legend {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(11, 18, 37, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: .7rem;
+      color: var(--txt-2);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       TOAST
+    ════════════════════════════════════════════════════════ */
+    #toasts {
+      position: fixed;
+      bottom: 1.75rem;
+      right: 1.75rem;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: rgba(10, 17, 35, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 16px;
+      min-width: 270px;
+      max-width: 500px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .82rem;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+      animation: slideIn .3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(110%);
+        opacity: 0
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1
+      }
+    }
+
+    .toast.success {
+      border-color: rgba(16, 185, 129, .3);
+    }
+
+    .toast.error {
+      border-color: rgba(239, 68, 68, .3);
+    }
+
+    .toast.info {
+      border-color: rgba(0, 212, 255, .3);
+    }
+
+    .t-ico.success {
+      color: var(--green);
+    }
+
+    .t-ico.error {
+      color: var(--red);
+    }
+
+    .t-ico.info {
+      color: var(--cyan);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       UTILITIES
+    ════════════════════════════════════════════════════════ */
+    .hidden {
+      display: none !important;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .active-record {
+      border: 1.5px solid var(--cyan) !important;
+      background: var(--bg-card-h) !important;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+    }
+    .record-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 1.25rem !important;
+      border-radius: var(--r);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .record-card:hover { 
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .record-card.active-record::after {
+       content: 'ACTIVE';
+       position: absolute;
+       top: 10px; right: 10px;
+       font-size: 0.6rem; font-weight: 800;
+       color: var(--cyan); background: rgba(0, 212, 255, 0.1);
+       padding: 2px 6px; border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HIDDEN FILE INPUTS -->
+  <input type="file" id="fi-dwg" accept=".dwg,.dxf,.ifc" onchange="onDwgPick(event)">
+  <input type="file" id="fi-excel" accept=".xlsx,.xls,.csv" onchange="onExcelPick(event)">
+
+  <!-- ══ NAVBAR ══════════════════════════════════════════════════ -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="nav-logo"></div>
+      <div>
+        <div class="nav-title">Dashboard</div>
+        <div class="nav-sub">MasterPlan Analytics</div>
+      </div>
+    </div>
+    <div class="nav-pills">
+      <span class="status-dot dot-idle" id="status-pill">● No Data</span>
+      <button class="pill primary" onclick="toggleDataManager()" id="btn-mgr">
+        <i class="fa-solid fa-database"></i> Manage Data
+      </button>
+      <button class="pill green" onclick="$('fi-excel').click()" id="btn-excel">
+        <i class="fa-solid fa-file-excel"></i> Upload Excel
+      </button>
+      <button class="pill purple" onclick="$('fi-dwg').click()">
+        <i class="fa-solid fa-drafting-compass"></i> Upload DWG
+      </button>
+      <button class="pill" onclick="clearAll()" title="Reset">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ══ MAIN ═════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- CAD record banner -->
+    <div id="cad-banner">
+      <div class="cb-left">
+        <i class="fa-solid fa-file-lines cb-icon"></i>
+        <div>
+          <div class="cb-title" id="cb-filename">CAD File Loaded</div>
+          <div class="cb-sub" id="cb-info">358 parcels extracted</div>
+        </div>
+      </div>
+      <div class="cb-right">
+        <button class="pill green" onclick="$('fi-excel').click()">
+          <i class="fa-solid fa-file-excel"></i> Upload Excel to Merge
+        </button>
+        <button class="pill" onclick="initViewer()" id="btn-viewer-banner" style="display:none">
+          <i class="fa-solid fa-cube"></i> 3D Viewer
+        </button>
+      </div>
+    </div>
+
+    <!-- DROP ZONE -->
+    <div id="drop-zone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div class="dz-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+      <h1 class="dz-title">Upload Project Files</h1>
+      <p class="dz-sub">Drag and drop your CAD, IFC, or Excel files here to process</p>
+      <div class="dz-btns">
+        <button class="pill purple" onclick="$('fi-dwg').click()">
+          <i class="fa-solid fa-drafting-compass"></i> Select DWG / IFC
+        </button>
+        <button class="pill green" onclick="$('fi-excel').click()">
+          <i class="fa-solid fa-file-excel"></i> Select Excel
+        </button>
+      </div>
+      <div class="dz-formats">
+        <span class="fmt fmt-dwg">DWG</span>
+        <span class="fmt fmt-dwg" style="--purple:#8b5cf6">IFC</span>
+        <span class="fmt fmt-xlsx">XLSX</span>
+      </div>
+    </div>
+
+    <!-- RECORDS LIST (Data Manager) -->
+    <div id="records-container" class="hidden" style="margin-bottom: 2.5rem; background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 1.5rem; border-radius: var(--r);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.25rem;">
+        <div class="sec-label" style="margin-bottom:0">Data Management & Model History</div>
+        <button class="pill" onclick="toggleDataManager()"><i class="fa-solid fa-xmark"></i> Close</button>
+      </div>
+      <div id="records-list"
+        style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:1rem;"></div>
+    </div>
+
+    <!-- PROGRESS CARD -->
+    <div id="progress-card">
+      <div class="prog-header">
+        <div class="prog-label">
+          <div class="spinner"></div><span id="prog-text">Processing…</span>
+        </div>
+        <span class="prog-pct" id="prog-pct">0%</span>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" id="prog-bar"></div>
+      </div>
+      <div class="prog-steps">
+        <div class="pstep" id="ps1">
+          <div class="si"><i class="fa-solid fa-arrow-up-from-bracket"></i></div><span>Uploading file to server</span>
+        </div>
+        <div class="pstep" id="ps2">
+          <div class="si"><i class="fa-solid fa-gears"></i></div><span>Translating model via Autodesk Platform
+            Services</span>
+        </div>
+        <div class="pstep" id="ps3">
+          <div class="si"><i class="fa-solid fa-database"></i></div><span>Extracting parcel properties</span>
+        </div>
+        <div class="pstep" id="ps4">
+          <div class="si"><i class="fa-solid fa-chart-pie"></i></div><span>Rendering dashboard</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ DASHBOARD ════════════════════════════════════════════ -->
+    <div id="dashboard">
+
+      <!-- KPI -->
+      <div class="sec-label">Key Metrics</div>
+      <div class="kpi-grid">
+        <div class="kpi" style="--kc:var(--cyan);--kib:var(--cyan-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Total Plots</span>
+            <div class="kpi-ico"><i class="fa-solid fa-map"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-plots">—</div>
+          <div class="kpi-sub">parcels in dataset</div>
+        </div>
+        <div class="kpi" style="--kc:var(--orange);--kib:var(--orange-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Total GFA</span>
+            <div class="kpi-ico"><i class="fa-solid fa-building"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-gfa">—</div>
+          <div class="kpi-sub">m² gross floor area</div>
+        </div>
+        <div class="kpi" style="--kc:var(--green);--kib:var(--green-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Total Area</span>
+            <div class="kpi-ico"><i class="fa-solid fa-vector-square"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-area">—</div>
+          <div class="kpi-sub">m² land area</div>
+        </div>
+        <div class="kpi" style="--kc:var(--purple);--kib:var(--purple-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Data Sources</span>
+            <div class="kpi-ico"><i class="fa-solid fa-layer-group"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-sources">—</div>
+          <div class="kpi-sub">CAD / Excel / Merged</div>
+        </div>
+        <div class="kpi" style="--kc:var(--pink);--kib:var(--pink-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Land Uses</span>
+            <div class="kpi-ico"><i class="fa-solid fa-puzzle-piece"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-landuses">—</div>
+          <div class="kpi-sub">unique categories</div>
+        </div>
+        <div class="kpi" style="--kc:var(--yellow);--kib:var(--yellow-dim)">
+          <div class="kpi-top">
+            <span class="kpi-label">Total Units</span>
+            <div class="kpi-ico"><i class="fa-solid fa-house-chimney"></i></div>
+          </div>
+          <div class="kpi-val" id="kv-units">—</div>
+          <div class="kpi-sub">residential units</div>
+        </div>
+      </div>
+
+      <!-- CHARTS -->
+      <div class="sec-label">Data Analysis</div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-head"><i class="fa-solid fa-chart-pie"></i> Land Use Distribution</div>
+          <div class="chart-box"><canvas id="c-landuse"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><i class="fa-solid fa-circle-half-stroke"></i> Data Source</div>
+          <div class="chart-box"><canvas id="c-source"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><i class="fa-solid fa-chart-bar"></i> Top Plots by Area (m²)</div>
+          <div class="chart-box"><canvas id="c-area"></canvas></div>
+        </div>
+      </div>
+
+      <!-- VIEWER + DETAIL -->
+      <div class="sec-row">
+        <div class="sec-label">3D Viewer & Plot Details</div>
+        <button class="pill" id="btn-viewer" onclick="initViewer()" style="display:none">
+          <i class="fa-solid fa-cube"></i> Load in Viewer
+        </button>
+      </div>
+      <div class="mid-row">
+        <div id="viewer-wrap">
+          <div class="viewer-ph" id="viewer-ph">
+            <i class="fa-solid fa-cube"></i>
+            <p><strong>3D / 2D Viewer</strong></p>
+            <p>Upload a DWG file and click "Load in Viewer" to open the Autodesk Platform Services viewer</p>
+          </div>
+        </div>
+        <div class="detail-card">
+          <div class="detail-hed"><i class="fa-solid fa-circle-info"></i> &nbsp;Plot Details</div>
+          <div class="detail-ph" id="detail-ph">
+            <i class="fa-solid fa-arrow-pointer"></i>
+            Click any row in the table to view full parcel details
+          </div>
+          <div id="detail-body" class="hidden"></div>
+        </div>
+      </div>
+
+      <!-- MAP -->
+      <div class="sec-row">
+        <div class="sec-label">Parcel Map (DLTM → WGS84)</div>
+        <span id="map-info" style="font-size:.7rem;color:var(--txt-3)"></span>
+      </div>
+      <div id="mini-map"></div>
+
+      <!-- TABLE -->
+      <div class="sec-row">
+        <div class="sec-label">Parcel Registry</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="status-dot dot-active">● Live</span>
+          <span id="upd-label" style="font-size:.7rem;color:var(--txt-3)"></span>
+        </div>
+      </div>
+
+      <div class="tbl-card">
+        <div class="tbl-head">
+          <div class="tbl-title"><i class="fa-solid fa-table-cells"></i> &nbsp;All Parcels</div>
+          <div class="tbl-ctrls">
+            <div class="s-wrap">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input class="s-input" id="srch" placeholder="Search plot / zone…" oninput="applyFilter()">
+            </div>
+            <select class="f-sel" id="f-lu" onchange="applyFilter()">
+              <option value="">All Land Uses</option>
+            </select>
+            <select class="f-sel" id="f-src" onchange="applyFilter()">
+              <option value="">All Sources</option>
+              <option value="CAD">CAD only</option>
+              <option value="Excel">Excel only</option>
+              <option value="CAD+Excel">Merged</option>
+            </select>
+            <button class="pg-btn" onclick="exportCSV()" title="Export CSV">
+              <i class="fa-solid fa-download"></i>
+            </button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th onclick="doSort('plot_no')"># Plot No <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('zone')">Zone <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('land_use')">Land Use <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('area')">Area m² <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('gfa')">GFA m² <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('far')">FAR <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('height')">Height <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('units')">Units <i class="fa-solid fa-sort fa-xs"></i></th>
+                <th onclick="doSort('source')">Source <i class="fa-solid fa-sort fa-xs"></i></th>
+              </tr>
+            </thead>
+            <tbody id="tbl-body">
+              <tr>
+                <td colspan="9">
+                  <div class="tbl-empty"><i class="fa-solid fa-inbox"></i>No data loaded</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="tbl-foot">
+          <span id="tbl-count">0 records</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="pg-btn" onclick="pg(-1)">← Prev</button>
+            <span id="pg-info" style="font-size:.75rem;color:var(--txt-3)">Page 1</span>
+            <button class="pg-btn" onclick="pg(+1)">Next →</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dashboard -->
+  </main>
+
+  <!-- TOASTS -->
+  <div id="toasts"></div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════ -->
+  <script>
+    /* ── helpers ─────────────────────────────────────────────── */
+    const $ = id => document.getElementById(id);
+    const API = window.location.origin + '/api';
+
+    const PALETTE = [
+      '#00d4ff', '#8b5cf6', '#10b981', '#f97316', '#ec4899',
+      '#f59e0b', '#06b6d4', '#84cc16', '#6366f1', '#14b8a6',
+      '#f43f5e', '#a855f7', '#22c55e', '#fb923c', '#e879f9'
+    ];
+
+    const LU_COLOR = {
+      'residential': '#f97316', 'townhouse': '#fb923c',
+      'right of way': '#3b82f6', 'right-of-way (row)': '#3b82f6', 'row': '#3b82f6', 'road': '#64748b',
+      'park': '#10b981', 'open space': '#10b981', 'community park': '#10b981',
+      'green area': '#10b981', 'commercial': '#ef4444', 'mixed use': '#8b5cf6',
+      'institutional': '#00d4ff', 'industrial': '#f59e0b',
+      'hospitality': '#ec4899', 'utility': '#a855f7',
+      'unclassified': '#64748b'
+    };
+
+    const _dynColors = {};
+    function luColor(lu) {
+      if (!lu) return '#64748b';
+      const k = lu.toLowerCase().trim();
+      if (LU_COLOR[k]) return LU_COLOR[k];
+      if (!_dynColors[k]) {
+        _dynColors[k] = PALETTE[Object.keys(_dynColors).length % PALETTE.length];
+      }
+      return _dynColors[k];
+    }
+
+    function srcColor(src) {
+      if (src === 'CAD+Excel') return '#10b981';
+      if (src === 'CAD') return '#00d4ff';
+      if (src === 'Excel') return '#f97316';
+      return '#64748b';
+    }
+
+    function fmt(n) {
+      if (!n || isNaN(n)) return '—';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(n >= 10000 ? 0 : 1) + 'K';
+      return Number(n).toLocaleString();
+    }
+
+    function animN(id, target) {
+      const el = $(id); if (!el) return;
+      if (!target) { el.textContent = '0'; return; }
+      let v = 0; const step = target / 50;
+      const t = setInterval(() => {
+        v += step; if (v >= target) { v = target; clearInterval(t); }
+        el.textContent = fmt(Math.round(v));
+      }, 16);
+    }
+
+    /* ── STATE ───────────────────────────────────────────────── */
+    let allData = [], filtered = [], sortKey = 'plot_no', sortDir = 1;
+    let page = 1; const PER_PAGE = 25;
+    let currentUrn = null, pollTimer = null, leafMap = null, viewer = null;
+    let allRecords = [];
+    const charts = {};
+
+    /* ── BOOT ────────────────────────────────────────────────── */
+    async function boot() {
+      await loadApsStatus();
+    }
+
+    function toggleDataManager() {
+      const el = $('records-container');
+      el.classList.toggle('hidden');
+      if (!el.classList.contains('hidden')) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    async function loadApsStatus() {
+      try {
+        const r = await fetch(`${API}/aps-status`);
+        const d = await r.json();
+        allRecords = d.records || [];
+        renderRecords(allRecords);
+
+        // If we have records, show the container
+        if (allRecords.length > 0) {
+          $('btn-mgr').classList.add('active-record'); // Pulse or highlight
+          $('drop-zone').style.padding = '2rem 1.5rem'; 
+          
+          const best = allRecords.find(r => r.type !== 'Excel') || allRecords[0];
+          if (!currentUrn && best) switchModel(best.urn);
+        }
+      } catch (e) { console.error('Boot error:', e); }
+    }
+
+    function renderRecords(records) {
+      const container = $('records-list');
+      if (!records.length) {
+        container.innerHTML = '<div style="color:var(--txt-3); font-size:0.8rem;">No models or excel files uploaded yet.</div>';
+        return;
+      }
+      container.innerHTML = records.map(r => {
+        const isExcel = r.type === 'Excel';
+        const icon = isExcel ? 'fa-file-excel' : 'fa-file-invoice';
+        const color = isExcel ? 'var(--green)' : 'var(--cyan)';
+        return `
+          <div class="kpi record-card ${r.urn === currentUrn ? 'active-record' : ''}">
+            <div style="display:flex; justify-content:space-between; align-items:start;">
+              <div style="cursor:pointer; display:flex; gap:12px; align-items:center;" onclick="switchModel('${r.urn}')">
+                <div style="width:36px; height:36px; border-radius:8px; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; color:${color}">
+                   <i class="fa-solid ${icon}"></i>
+                </div>
+                <div>
+                  <div style="font-weight:700; color:${color}; margin-bottom:0.25rem; font-size:0.85rem;">${r.filename}</div>
+                  <div style="font-size:0.7rem; color:var(--txt-3);">${r.parcels?.length || 0} items · ${new Date(r.extractedAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+              <button class="btn-icon" onclick="deleteModel('${r.urn}')" title="Delete" style="background:transparent; border:none; color:var(--pink); cursor:pointer; font-size:0.8rem; opacity:0.6;">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function deleteModel(urn) {
+      if (!confirm('Are you sure you want to delete this model record?')) return;
+      try {
+        await fetch(`${API}/model/${urn}`, { method: 'DELETE' });
+        toast('Model removed', 'success');
+        if (currentUrn === urn) {
+          currentUrn = null;
+          allData = []; filtered = [];
+          $('dashboard').classList.remove('show');
+        }
+        await loadApsStatus();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function switchModel(urn) {
+      if (currentUrn === urn && allData.length > 0) return;
+      currentUrn = urn;
+      renderRecords(allRecords); // refresh list styles
+
+      showProgress('Switching model data…');
+      try {
+        const r = await fetch(`${API}/plots/${urn}`);
+        if (!r.ok) throw new Error('Data not found');
+        const plots = await r.json();
+
+        hideProgress();
+        showDashboard(plots);
+
+        if (viewer) {
+          viewer.finish();
+          viewer = null;
+          $('viewer-wrap').innerHTML = ''; // Clean container
+          $('viewer-ph').classList.remove('hidden');
+        }
+        toast(`Switched to ${allRecords.find(r => r.urn === urn)?.filename}`, 'info');
+      } catch (e) { hideProgress(); toast(e.message, 'error'); }
+    }
+
+    boot();
+
+    /* ── DRAG & DROP ─────────────────────────────────────────── */
+    function onDragOver(e) { e.preventDefault(); $('drop-zone').classList.add('over'); }
+    function onDragLeave(e) { $('drop-zone').classList.remove('over'); }
+    function onDrop(e) {
+      e.preventDefault(); $('drop-zone').classList.remove('over');
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      const ext = f.name.split('.').pop().toLowerCase();
+      if (['dwg', 'dxf', 'ifc'].includes(ext)) doUploadDwg(f);
+      else if (['xlsx', 'xls', 'csv'].includes(ext)) doUploadExcel(f);
+      else toast('Unsupported format. Use DWG, DXF, IFC, or Excel.', 'error');
+    }
+    function onDwgPick(e) { const f = e.target.files[0]; if (f) doUploadDwg(f); e.target.value = ''; }
+    function onExcelPick(e) { const f = e.target.files[0]; if (f) doUploadExcel(f); e.target.value = ''; }
+
+    /* ── DWG UPLOAD ──────────────────────────────────────────── */
+    async function doUploadDwg(file) {
+      showProgress('Uploading DWG/DXF file…');
+      setStep('ps1', 'act'); setP(12);
+
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const r = await fetch(`${API}/upload-dwg`, { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Upload failed');
+
+        setStep('ps1', 'done'); setP(30);
+        currentUrn = d.urn;
+        setStep('ps2', 'act'); progText('Translating via Autodesk Platform Services…');
+        pollTimer = setInterval(() => pollStatus(d.urn, file.name), 3000);
+      } catch (e) {
+        hideProgress(); toast(e.message, 'error');
+      }
+    }
+
+    let pollCount = 0;
+    async function pollStatus(urn, filename) {
+      pollCount++;
+      try {
+        const r = await fetch(`${API}/status/${urn}`);
+        const d = await r.json();
+        const pct = d.progress === 'complete' ? 100 : (parseInt(d.progress) || Math.min(pollCount * 4, 85));
+        setP(30 + pct * 0.45);
+        if (d.status === 'success') {
+          clearInterval(pollTimer); pollCount = 0;
+          setStep('ps2', 'done'); setStep('ps3', 'act'); setP(80);
+          progText('Extracting parcel properties…');
+          const pr = await fetch(`${API}/properties/${urn}?filename=${encodeURIComponent(filename || '')}`);
+          const plots = await pr.json();
+          await loadApsStatus(); // Refresh records list
+          finalize(plots, urn);
+        } else if (d.status === 'failed') {
+          clearInterval(pollTimer); hideProgress();
+          toast('APS translation failed. Try again.', 'error');
+        } else if (pollCount > 100) {
+          clearInterval(pollTimer); hideProgress();
+          toast('Translation timed out.', 'error');
+        }
+      } catch (e) { console.warn(e); }
+    }
+
+    function finalize(plots, urn) {
+      setStep('ps3', 'done'); setStep('ps4', 'act'); setP(95);
+      setTimeout(() => {
+        setStep('ps4', 'done'); setP(100);
+        setTimeout(() => {
+          hideProgress();
+          showDashboard(plots);
+          if (urn) { currentUrn = urn; $('btn-viewer').style.display = 'flex'; $('btn-viewer-banner').style.display = 'flex'; }
+          toast(`✓ Loaded ${plots.length} parcels from DWG`, 'success');
+        }, 400);
+      }, 700);
+    }
+
+    /* ── EXCEL UPLOAD ────────────────────────────────────────── */
+    async function doUploadExcel(file) {
+      showProgress('Processing Excel file…'); setP(25);
+      setStep('ps1', 'act');
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const r = await fetch(`${API}/upload-excel`, { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error);
+        setStep('ps1', 'done'); setP(60);
+        progText('Loading merged data…');
+
+        const pr = await fetch(`${API}/plots`);
+        const plots = await pr.json();
+        setP(100);
+        setTimeout(() => {
+          hideProgress();
+          showDashboard(plots);
+          toast(`✓ ${d.message}`, 'success');
+        }, 300);
+      } catch (e) { hideProgress(); toast(e.message, 'error'); }
+    }
+
+    /* ── DASHBOARD ───────────────────────────────────────────── */
+    function showDashboard(data) {
+      allData = data; filtered = [...data];
+      $('drop-zone').classList.add('hidden');
+      $('dashboard').classList.add('show');
+
+      const hasMerged = data.some(p => p.source === 'CAD+Excel');
+      $('status-pill').textContent = hasMerged ? '● CAD + Excel' : '● Data Loaded';
+      $('status-pill').className = 'status-dot dot-active';
+      $('upd-label').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+      renderKPIs(data);
+      populateFilters(data);
+      renderCharts(data);
+      renderMap(data);
+      page = 1; renderTable();
+    }
+
+    function renderKPIs(data) {
+      const gfa = data.reduce((s, p) => s + (parseFloat(p.gfa) || 0), 0);
+      const area = data.reduce((s, p) => s + (parseFloat(p.area) || 0), 0);
+      const units = data.reduce((s, p) => s + (parseInt(p.units) || 0), 0);
+      const lus = new Set(data.map(p => p.land_use).filter(Boolean));
+      const srcs = {};
+      data.forEach(p => { srcs[p.source || '?'] = (srcs[p.source || '?'] || 0) + 1; });
+      const srcStr = Object.entries(srcs).map(([k, v]) => `${v} ${k}`).join(', ');
+
+      animN('kv-plots', data.length);
+      animN('kv-gfa', gfa);
+      animN('kv-area', area);
+      $('kv-sources').textContent = srcStr || '—';
+      $('kv-sources').style.fontSize = '0.85rem';
+      animN('kv-landuses', lus.size);
+      animN('kv-units', units);
+    }
+
+    /* ── FILTERS ─────────────────────────────────────────────── */
+    function populateFilters(data) {
+      const lus = [...new Set(data.map(p => p.land_use).filter(Boolean))].sort();
+      $('f-lu').innerHTML = '<option value="">All Land Uses</option>' + lus.map(l => `<option>${l}</option>`).join('');
+    }
+
+    function applyFilter() {
+      const q = $('srch').value.toLowerCase();
+      const lu = $('f-lu').value;
+      const src = $('f-src').value;
+      filtered = allData.filter(p => {
+        const mq = !q || [p.plot_no, p.zone, p.land_use, p.plot_no2].some(v => String(v || '').toLowerCase().includes(q));
+        const ml = !lu || p.land_use === lu;
+        const ms = !src || p.source === src;
+        return mq && ml && ms;
+      });
+      page = 1; 
+      renderTable();
+      renderKPIs(filtered);
+      renderMap(filtered);
+    }
+
+    function doSort(k) {
+      if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+      filtered.sort((a, b) => {
+        const va = a[k] ?? '', vb = b[k] ?? '';
+        if (!isNaN(va) && !isNaN(vb)) return (parseFloat(va) - parseFloat(vb)) * sortDir;
+        return String(va).localeCompare(String(vb)) * sortDir;
+      });
+      renderTable();
+    }
+
+    function pg(d) {
+      const max = Math.ceil(filtered.length / PER_PAGE);
+      page = Math.max(1, Math.min(page + d, max));
+      renderTable();
+    }
+
+    /* ── TABLE ───────────────────────────────────────────────── */
+    function renderTable() {
+      const tbody = $('tbl-body');
+      const slice = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+      if (!slice.length) {
+        tbody.innerHTML = `<tr><td colspan="9"><div class="tbl-empty"><i class="fa-solid fa-filter-circle-xmark"></i>No matching parcels</div></td></tr>`;
+        $('tbl-count').textContent = '0 records'; $('pg-info').textContent = 'Page 0 / 0'; return;
+      }
+      const offset = (page - 1) * PER_PAGE;
+      tbody.innerHTML = slice.map((p, i) => {
+        const lc = luColor(p.land_use);
+        const sc = srcColor(p.source);
+        return `<tr onclick="showDetail(${offset + i})">
+      <td><span style="font-weight:700;color:var(--cyan)">${p.plot_no || '—'}</span></td>
+      <td>${p.zone ? `<span class="bdg" style="background:rgba(0,212,255,0.1);color:var(--cyan)">${p.zone}</span>` : '—'}</td>
+      <td><span class="bdg" style="background:${lc}1a;color:${lc}">${p.land_use || '—'}</span></td>
+      <td>${p.area ? Number(p.area).toLocaleString() : '—'}</td>
+      <td>${p.gfa ? Number(p.gfa).toLocaleString() : '—'}</td>
+      <td>${parseFloat(p.far) > 0 ? parseFloat(p.far).toFixed(2) : '—'}</td>
+      <td>${p.height || '—'}</td>
+      <td>${p.units || '—'}</td>
+      <td><span class="bdg" style="background:${sc}1a;color:${sc}">${p.source || '—'}</span></td>
+    </tr>`;
+      }).join('');
+      const maxPg = Math.ceil(filtered.length / PER_PAGE);
+      $('tbl-count').textContent = `${filtered.length.toLocaleString()} records`;
+      $('pg-info').textContent = `Page ${page} / ${maxPg}`;
+    }
+
+    /* ── DETAIL PANEL ────────────────────────────────────────── */
+    function showDetail(i) {
+      const p = filtered[i]; if (!p) return;
+      const lc = luColor(p.land_use);
+      $('detail-ph').classList.add('hidden');
+      const b = $('detail-body');
+      b.classList.remove('hidden');
+      b.innerHTML = `
+    <div class="detail-no">Plot ${p.plot_no || 'N/A'}</div>
+    ${p.plot_no2 ? `<div style="font-size:.75rem;color:var(--txt-3);margin-bottom:.5rem">Alt: ${p.plot_no2}</div>` : ''}
+    <span class="d-zone"><i class="fa-solid fa-location-dot"></i> ${p.zone || 'No Zone'}</span>
+    <div class="d-row"><span class="d-key">Land Use</span>
+      <span class="bdg" style="background:${lc}1a;color:${lc}">${p.land_use || '—'}</span></div>
+    <div class="d-row"><span class="d-key">Parcel Area</span>
+      <span class="d-val">${p.area ? Number(p.area).toLocaleString() + ' m²' : '—'}</span></div>
+    <div class="d-row"><span class="d-key">Gross Floor Area</span>
+      <span class="d-val">${p.gfa ? Number(p.gfa).toLocaleString() + ' m²' : '—'}</span></div>
+    <div class="d-row"><span class="d-key">Floor Area Ratio</span>
+      <span class="d-val">${parseFloat(p.far) > 0 ? parseFloat(p.far).toFixed(2) : '—'}</span></div>
+    <div class="d-row"><span class="d-key">Proposed Height</span>
+      <span class="d-val">${p.height || '—'}</span></div>
+    <div class="d-row"><span class="d-key">Residential Units</span>
+      <span class="d-val">${p.units || '—'}</span></div>
+    <div class="d-row"><span class="d-key">Source</span>
+      <span class="bdg" style="background:${srcColor(p.source)}1a;color:${srcColor(p.source)}">${p.source || '—'}</span></div>
+    ${p.lat ? `<div class="d-row"><span class="d-key">Location</span>
+      <span class="d-val" style="font-size:.72rem">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</span></div>` : ''}
+    <div class="d-row"><span class="d-key">Handle</span>
+      <span class="d-val" style="font-family:monospace;font-size:.72rem">${p.handle || '—'}</span></div>
+  `;
+    }
+
+    /* ── CHARTS ──────────────────────────────────────────────── */
+    function destroyChart(id) { const c = Chart.getChart($(id)); if (c) c.destroy(); }
+
+    const legendOpts = {
+      position: 'bottom',
+      labels: { color: '#64748b', font: { size: 10, family: 'Inter' }, padding: 8, boxWidth: 10, boxHeight: 10 }
+    };
+
+    function renderCharts(data) {
+      // Land use doughnut
+      const lu = {}; data.forEach(p => { if (p.land_use) lu[p.land_use] = (lu[p.land_use] || 0) + 1; });
+      const ll = Object.entries(lu).sort((a, b) => b[1] - a[1]).slice(0, 12);
+      destroyChart('c-landuse');
+      charts.lu = new Chart($('c-landuse'), {
+        type: 'doughnut',
+        data: {
+          labels: ll.map(l => l[0]), datasets: [{
+            data: ll.map(l => l[1]),
+            backgroundColor: ll.map(l => luColor(l[0])), 
+            borderWidth: 2, 
+            borderColor: 'transparent',
+            hoverBorderColor: '#fff',
+            hoverOffset: 12
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '65%',
+          animation: { animateScale: true, animateRotate: true },
+          plugins: { 
+            legend: legendOpts,
+            tooltip: {
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              padding: 12,
+              titleFont: { size: 14, weight: 'bold' },
+              bodyFont: { size: 13 },
+              displayColors: true,
+              boxWidth: 8, boxHeight: 8, boxPadding: 6
+            }
+          },
+          onClick: (e, elements) => {
+            if (elements && elements.length > 0) {
+              const i = elements[0].index;
+              const label = ll[i][0];
+              $('f-lu').value = label;
+              applyFilter();
+              toast(`Filtered by ${label}`, 'info');
+            }
+          }
+        }
+      });
+
+      // Source breakdown
+      const sc = {}; data.forEach(p => { const s = p.source || '?'; sc[s] = (sc[s] || 0) + 1; });
+      const ss = Object.entries(sc).sort((a, b) => b[1] - a[1]);
+      destroyChart('c-source');
+      charts.src = new Chart($('c-source'), {
+        type: 'pie',
+        data: {
+          labels: ss.map(s => s[0]), datasets: [{
+            data: ss.map(s => s[1]),
+            backgroundColor: ss.map(s => srcColor(s[0])), borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: legendOpts },
+          onClick: (e, elements) => {
+            if (elements && elements.length > 0) {
+              const i = elements[0].index;
+              const label = ss[i][0];
+              $('f-src').value = label;
+              applyFilter();
+              toast(`Filtered by Source: ${label}`, 'info');
+            }
+          }
+        }
+      });
+
+      // Top area bar
+      const top = data.filter(p => parseFloat(p.area) > 0).sort((a, b) => parseFloat(b.area) - parseFloat(a.area)).slice(0, 14);
+      destroyChart('c-area');
+      charts.area = new Chart($('c-area'), {
+        type: 'bar',
+        data: {
+          labels: top.map(p => String(p.plot_no || '?').substring(0, 12)),
+          datasets: [{
+            label: 'Area m²', data: top.map(p => parseFloat(p.area)),
+            backgroundColor: top.map(p => luColor(p.land_use) + 'cc'),
+            borderRadius: 5, borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+            y: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    /* ── MAP ─────────────────────────────────────────────────── */
+    function renderMap(data) {
+      if (!leafMap) {
+        leafMap = L.map('mini-map', { zoomControl: true }).setView([25.1, 55.2], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap'
+        }).addTo(leafMap);
+      } else {
+        leafMap.eachLayer(l => { if (l instanceof L.CircleMarker) leafMap.removeLayer(l); });
+      }
+
+      // Plot parcels with lat/lng (converted from DLTM by the backend)
+      const withCoords = data.filter(p => p.lat && p.lng);
+      const withoutCoords = data.filter(p => !p.lat || !p.lng);
+
+      if (withCoords.length > 0) {
+        $('map-info').textContent = `${withCoords.length} parcels with DLTM coordinates · ${withoutCoords.length} without`;
+        const bounds = [];
+        withCoords.forEach(p => {
+          const lc = luColor(p.land_use);
+          const radius = Math.max(5, Math.min(15, Math.sqrt((p.area || 100) / 200)));
+          const marker = L.circleMarker([p.lat, p.lng], {
+            radius, color: lc, fillColor: lc, fillOpacity: .7, weight: 1.5
+          }).bindPopup(`
+        <strong>${p.plot_no || 'Plot'}</strong><br>
+        Land Use: ${p.land_use || '—'}<br>
+        Area: ${p.area ? Number(p.area).toLocaleString() + ' m²' : '—'}<br>
+        GFA: ${p.gfa ? Number(p.gfa).toLocaleString() + ' m²' : '—'}<br>
+        Source: ${p.source || '—'}
+      `).addTo(leafMap);
+          bounds.push([p.lat, p.lng]);
+        });
+        if (bounds.length) leafMap.fitBounds(bounds, { padding: [30, 30] });
+      } else {
+        // No DLTM coordinates — show placeholder with approximate positions
+        $('map-info').textContent = `${data.length} parcels · Add Easting/Northing columns in Excel for DLTM positioning`;
+        const center = [25.1, 55.2]; // Dubai area
+        data.filter((_, i) => i < 300).forEach((p, i) => {
+          const lat = center[0] + (i % 20) * 0.003 + Math.random() * 0.001;
+          const lng = center[1] + Math.floor(i / 20) * 0.004 + Math.random() * 0.001;
+          const lc = luColor(p.land_use);
+          L.circleMarker([lat, lng], {
+            radius: 6, color: lc, fillColor: lc, fillOpacity: .6, weight: 1
+          }).bindPopup(`
+        <strong>${p.plot_no || 'Plot'}</strong><br>
+        Land Use: ${p.land_use || '—'}<br>
+        Area: ${p.area ? Number(p.area).toLocaleString() + ' m²' : '—'}<br>
+        <em style="color:#f59e0b">⚠ Approximate position</em>
+      `).addTo(leafMap);
+        });
+      }
+
+      setTimeout(() => leafMap?.invalidateSize(), 200);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  DLTM ↔ WGS84 COORDINATE CONVERSION (Frontend)
+    //  Dubai Local Transverse Mercator (EPSG-like, based on WGS84)
+    // ──────────────────────────────────────────────────────────────
+    const DLTM = {
+      a: 6378137.0, f: 1 / 298.257223563, k0: 0.999901, lon0: 55.0 + 20.0 / 60.0,
+      lat0: 0, FE: 500000, FN: 0
+    };
+    DLTM.e2 = 2 * DLTM.f - DLTM.f * DLTM.f;
+    DLTM.e = Math.sqrt(DLTM.e2);
+    DLTM.ep2 = DLTM.e2 / (1 - DLTM.e2);
+
+    function dltmToWgs84(easting, northing) {
+      const { a, e2, ep2, k0, lon0, FE, FN } = DLTM;
+      const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+
+      const M = (northing - FN) / k0;
+      const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
+
+      const phi1 = mu
+        + (3 * e1 / 2 - 27 * e1 * e1 * e1 / 32) * Math.sin(2 * mu)
+        + (21 * e1 * e1 / 16 - 55 * e1 * e1 * e1 * e1 / 32) * Math.sin(4 * mu)
+        + (151 * e1 * e1 * e1 / 96) * Math.sin(6 * mu)
+        + (1097 * e1 * e1 * e1 * e1 / 512) * Math.sin(8 * mu);
+
+      const sinPhi1 = Math.sin(phi1);
+      const cosPhi1 = Math.cos(phi1);
+      const tanPhi1 = Math.tan(phi1);
+      const N1 = a / Math.sqrt(1 - e2 * sinPhi1 * sinPhi1);
+      const T1 = tanPhi1 * tanPhi1;
+      const C1 = ep2 * cosPhi1 * cosPhi1;
+      const R1 = a * (1 - e2) / Math.pow(1 - e2 * sinPhi1 * sinPhi1, 1.5);
+      const D = (easting - FE) / (N1 * k0);
+
+      const lat = phi1
+        - (N1 * tanPhi1 / R1) * (
+          D * D / 2
+          - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * D * D * D * D / 24
+          + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * D * D * D * D * D * D / 720
+        );
+
+      const lon = (lon0 * Math.PI / 180) + (
+        D
+        - (1 + 2 * T1 + C1) * D * D * D / 6
+        + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * D * D * D * D * D / 120
+      ) / cosPhi1;
+
+      return { lat: lat * 180 / Math.PI, lng: lon * 180 / Math.PI };
+    }
+
+    /* ── APS VIEWER ──────────────────────────────────────────── */
+    async function initViewer() {
+      if (!currentUrn) { toast('No DWG URN available', 'error'); return; }
+      try {
+        const r = await fetch(`${API}/token`);
+        const { access_token } = await r.json();
+        $('viewer-ph').classList.add('hidden');
+
+        if (!window.Autodesk) {
+          await loadScript('https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js');
+          await loadCSS('https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css');
+        }
+
+        Autodesk.Viewing.Initializer({ env: 'AutodeskProduction', accessToken: access_token }, () => {
+          viewer = new Autodesk.Viewing.GuiViewer3D($('viewer-wrap'));
+          viewer.start();
+          const v = viewer; // Alias for internal event listeners
+
+          // Setup selection listener
+          v.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, (ev) => {
+            if (!ev.dbIdArray || !ev.dbIdArray.length) return;
+            const dbId = ev.dbIdArray[0];
+
+            const findParcel = (id) => {
+              v.getProperties(id, (props) => {
+                let handle = null, plotId = null, plotArea = null;
+                if (props && props.properties) {
+                  props.properties.forEach(p => {
+                    if (p.displayName === 'Handle' && !handle) handle = String(p.displayValue).trim();
+                    if (p.displayName === 'ID' && !plotId) plotId = String(p.displayValue).trim();
+                    if (p.displayName === 'ID2' && !plotId) plotId = String(p.displayValue).trim();
+                    if (p.displayName === 'Area' && !plotArea) plotArea = parseFloat(p.displayValue);
+                  });
+                }
+
+                // 1. Exact match by ID or Handle
+                let matchIdx = filtered.findIndex(p =>
+                  (plotId && (p.plot_no === plotId || p.plot_no2 === plotId)) ||
+                  (handle && p.handle === handle)
+                );
+
+                // 2. Magic match by Area (solves Hatch vs Block disconnect in Civil3D)
+                if (matchIdx === -1 && plotArea) {
+                  matchIdx = filtered.findIndex(p => p.area && Math.abs(parseFloat(p.area) - plotArea) < 0.5);
+                }
+
+                if (matchIdx !== -1) {
+                  showDetail(matchIdx);
+                } else {
+                  // Traverse up the tree just in case properties are on a parent node
+                  const tree = v.model.getInstanceTree();
+                  if (tree) {
+                    const parentId = tree.getNodeParentId(id);
+                    if (parentId && parentId !== id && parentId !== tree.getRootId()) {
+                      findParcel(parentId);
+                    }
+                  }
+                }
+              });
+            };
+
+            findParcel(dbId);
+          });
+
+          // MAGIC MAP SYNC: Auto-extract geo-coordinates from the CAD geometry once loaded!
+          v.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
+            const tree = v.model.getInstanceTree();
+            const leaves = [];
+            tree.enumNodeChildren(tree.getRootId(), (dbId) => {
+              if (tree.getChildCount(dbId) === 0) leaves.push(dbId);
+            }, true);
+
+            v.model.getBulkProperties(leaves, { propFilter: ["Area"] }, (res) => {
+              // CAD origin global drift offset in Autodesk Viewers
+              const offset = v.model.getData().globalOffset;
+              let updatedCount = 0;
+
+              res.forEach(item => {
+                if (item.properties && item.properties.length > 0) {
+                  const areaStr = item.properties[0].displayValue;
+                  if (!areaStr) return;
+                  const areaMatched = parseFloat(areaStr);
+
+                  // Find matched parcel in our backend data
+                  const pIdx = allData.findIndex(p => p.area && Math.abs(parseFloat(p.area) - areaMatched) < 0.5);
+                  if (pIdx !== -1) {
+                    const p = allData[pIdx];
+                    // Only override if data came purely from CAD, skip if they provided Excel coordinates manually.
+                    if (!p.lat || p.source !== 'Excel') {
+                      const fragList = v.model.getFragmentList();
+                      const box = new THREE.Box3();
+                      tree.enumNodeFragments(item.dbId, (fragId) => {
+                        const b = new THREE.Box3();
+                        fragList.getWorldBounds(fragId, b);
+                        box.union(b);
+                      }, true);
+
+                      const center = box.center();
+                      const easting = center.x + offset.x;
+                      const northing = center.y + offset.y;
+
+                      // Convert to standard geographical Lat, Lng
+                      const wgs = dltmToWgs84(easting, northing);
+                      p.lat = wgs.lat;
+                      p.lng = wgs.lng;
+                      p.easting = easting;
+                      p.northing = northing;
+                      updatedCount++;
+
+                      // MAGIC COLORIZATION: Try to apply the dashboard land-use color to the CAD geometry!
+                      const hex = luColor(p.land_use);
+                      if (hex && hex.length === 7) {
+                        const rStr = parseInt(hex.slice(1, 3), 16) / 255;
+                        const gStr = parseInt(hex.slice(3, 5), 16) / 255;
+                        const bStr = parseInt(hex.slice(5, 7), 16) / 255;
+                        v.setThemingColor(item.dbId, new THREE.Vector4(rStr, gStr, bStr, 0.55));
+                      }
+                    }
+                  }
+                }
+              });
+
+              if (updatedCount > 0) {
+                toast(`Auto-geocoded ${updatedCount} parcels from 3D Model!`, 'success');
+                
+                // Persist to backend so coordinates are remembered next time
+                fetch(`${API}/plots/update-coords`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    urn: currentUrn,
+                    updates: allData.filter(p => p.easting && p.northing).map(p => ({
+                       handle: p.handle,
+                       plot_no: p.plot_no,
+                       easting: p.easting,
+                       northing: p.northing
+                    }))
+                  })
+                }).catch(err => console.error('Failed to persist coords:', err));
+
+                filtered = [...allData];
+                renderMap(filtered); // Re-render Leaflet Map in real positions!
+              }
+            });
+          });
+
+          Autodesk.Viewing.Document.load(`urn:${currentUrn}`, doc => {
+            v.loadDocumentNode(doc, doc.getRoot().getDefaultGeometry());
+          }, (code, msg) => toast(`Viewer error: ${msg}`, 'error'));
+        });
+      } catch (e) { toast(`Viewer: ${e.message}`, 'error'); }
+    }
+
+    function loadScript(src) {
+      return new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; document.head.appendChild(s); });
+    }
+    function loadCSS(href) {
+      return new Promise(res => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.onload = res; document.head.appendChild(l); });
+    }
+
+    /* ── EXPORT ──────────────────────────────────────────────── */
+    function exportCSV() {
+      if (!filtered.length) return;
+      const cols = ['plot_no', 'plot_no2', 'zone', 'land_use', 'area', 'gfa', 'far', 'height', 'units', 'status', 'source'];
+      const csv = [cols.join(','), ...filtered.map(p => cols.map(c => `"${p[c] ?? ''}"`).join(','))].join('\n');
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+        download: 'masterplan_parcels.csv'
+      });
+      a.click();
+      toast('CSV exported', 'success');
+    }
+
+    /* ── CLEAR ───────────────────────────────────────────────── */
+    function clearAll() {
+      allData = []; filtered = []; currentUrn = null;
+      if (pollTimer) clearInterval(pollTimer);
+      $('drop-zone').classList.remove('hidden');
+      $('dashboard').classList.remove('show');
+      $('progress-card').classList.remove('show');
+      $('cad-banner').classList.remove('show');
+      $('status-pill').textContent = '● No Data';
+      $('status-pill').className = 'status-dot dot-idle';
+      $('btn-viewer').style.display = 'none';
+      $('btn-viewer-banner').style.display = 'none';
+      $('detail-ph').classList.remove('hidden');
+      $('detail-body').classList.add('hidden');
+      fetch(`${API}/plots`, { method: 'DELETE' }).catch(() => { });
+    }
+
+    /* ── PROGRESS ────────────────────────────────────────────── */
+    function showProgress(t) {
+      $('drop-zone').classList.add('hidden');
+      $('cad-banner').classList.remove('show');
+      $('progress-card').classList.add('show');
+      progText(t);
+      ['ps1', 'ps2', 'ps3', 'ps4'].forEach(id => $(id).className = 'pstep');
+    }
+    function hideProgress() { $('progress-card').classList.remove('show'); }
+    function setP(pct) {
+      $('prog-bar').style.width = `${pct}%`;
+      $('prog-pct').textContent = `${Math.round(pct)}%`;
+    }
+    function progText(t) { $('prog-text').textContent = t; }
+    function setStep(id, state) {
+      const el = $(id); if (!el) return;
+      el.className = `pstep ${state}`;
+      if (state === 'done') el.querySelector('.si i').className = 'fa-solid fa-check';
+    }
+
+    /* ── TOAST ───────────────────────────────────────────────── */
+    function toast(msg, type = 'info') {
+      const icons = { success: 'fa-check-circle', error: 'fa-circle-xmark', info: 'fa-circle-info' };
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.innerHTML = `<i class="fa-solid ${icons[type]} t-ico ${type}"></i><span>${msg}</span>`;
+      $('toasts').appendChild(el);
+      setTimeout(() => el.remove(), 5000);
+    }
+
+    /* ── Chart.js defaults ─────────────────────────────────── */
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.font.family = 'Inter';
+  </script>
+</body>
+
+</html>

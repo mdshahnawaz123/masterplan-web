@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro BIM Inspector | 3D Production Suite</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg: #060b17;
+            --bg-card: #0f172a;
+            --bg-card-h: #1e293b;
+            --border: rgba(255, 255, 255, 0.08);
+            --cyan: #00d4ff;
+            --orange: #f97316;
+            --pink: #f43f5e;
+            --txt: #f8fafc;
+            --txt-2: #cbd5e1;
+            --txt-3: #64748b;
+            --r: 12px;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; outline:none; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg); 
+            color: var(--txt);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ══ HEADER ══════════════════════════════════════════════════ */
+        header {
+            height: 60px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 100;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .logo { width: 32px; height: 32px; background: linear-gradient(135deg, var(--cyan), #7c3aed); border-radius: 8px; }
+        .title { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em; }
+        .title span { color: var(--cyan); }
+
+        .header-ctrls { display: flex; gap: 10px; }
+        .btn-main {
+            background: var(--cyan);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-main:hover { transform: translateY(-2px); box-shadow: 0 0 15px rgba(0, 212, 255, 0.3); }
+
+        /* ══ CONTENT LAYOUT ══════════════════════════════════════════ */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 320px 1fr 340px;
+            gap: 1px;
+            background: var(--border);
+            overflow: hidden;
+        }
+
+        .sidebar { background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+        .side-head { padding: 1.25rem; font-size: 0.75rem; font-weight: 800; color: var(--txt-3); text-transform: uppercase; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+        
+        .tree-cont { flex: 1; overflow-y: auto; padding: 1rem; }
+        .model-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .model-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .model-name { font-size: 0.8rem; font-weight: 700; color: var(--cyan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+        .model-actions { display: flex; gap: 10px; }
+        .model-actions i { cursor: pointer; font-size: 0.85rem; transition: color 0.2s; }
+        .model-actions i:hover { color: #fff; }
+
+        .viewer-area { background: #000; position: relative; }
+        #canvas-wrap { width: 100%; height: 100%; cursor: crosshair; }
+
+        .floating-ctrls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+        .pill-btn {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border);
+            color: var(--txt-2);
+            padding: 10px 18px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .pill-btn:hover { border-color: var(--cyan); color: #fff; }
+        .pill-btn.active { background: var(--cyan); color: #000; border-color: var(--cyan); }
+
+        .props-area { background: var(--bg); border-left: 1px solid var(--border); overflow-y: auto; padding: 1.5rem; }
+        .prop-section { margin-bottom: 1.5rem; }
+        .prop-title { font-size: 0.65rem; font-weight: 800; color: var(--txt-3); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .prop-row { display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.02); padding-bottom: 4px; }
+        .prop-key { color: var(--txt-3); }
+        .prop-val { color: var(--txt-2); font-weight: 600; text-align: right; }
+
+        /* ══ ALIGNMENT MODAL ══════════════════════════════════════════ */
+        .align-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--orange);
+            border-radius: var(--r);
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        .align-label { color: var(--orange); font-size: 0.65rem; font-weight: 800; margin-bottom: 15px; display: block; }
+        .align-inp-row { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .align-fld { background: rgba(0,0,0,0.3); border: 1px border var(--border); color: #fff; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; width: 100%; border: 1px solid var(--border); }
+
+        /* ══ TOASTS ══════════════════════════════════════════════════ */
+        #toasts { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 1000; }
+        .toast { background: var(--bg-card); border: 1px solid var(--cyan); padding: 12px 24px; border-radius: 100px; font-size: 0.8rem; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: pop 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        @keyframes pop { from { opacity: 0; transform: translateY(10px); } }
+
+        /* ══ HELPERS ════════════════════════════════════════════════ */
+        .hidden { display: none !important; }
+        .ph-box { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--txt-3); padding: 2rem; }
+        .ph-box i { font-size: 3rem; margin-bottom: 1.5rem; opacity: 0.3; }
+        
+        .spinner { width: 40px; height: 40px; border: 3px solid rgba(0, 212, 255, 0.1); border-top-color: var(--cyan); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    <!-- Import Map for That Open Engine -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/+esm",
+        "@thatopen/components": "https://cdn.jsdelivr.net/npm/@thatopen/components@2.3.0/+esm",
+        "@thatopen/fragments": "https://cdn.jsdelivr.net/npm/@thatopen/fragments@2.3.0/+esm"
+      }
+    }
+    </script>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="logo"></div>
+            <div class="title">BIM<span>INSPECTOR</span> PRO</div>
+        </div>
+        <div class="header-ctrls">
+            <button class="btn-main" onclick="document.getElementById('fi-ifc').click()">
+                <i class="fa-solid fa-layer-group"></i> Batch Upload IFCs
+            </button>
+            <input type="file" id="fi-ifc" accept=".ifc" style="display:none" multiple onchange="window.handleUpload(event)">
+        </div>
+    </header>
+
+    <main>
+        <!-- LEFT: Project Map -->
+        <div class="sidebar">
+            <div class="side-head">
+                <span>Model Coordination</span>
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <div class="tree-cont" id="tree-cont">
+                <div class="ph-box">
+                    <i class="fa-solid fa-folder-tree"></i>
+                    <p style="font-size:0.75rem">No models loaded.<br>Use the upload button above.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: 3D Engine -->
+        <div class="viewer-area">
+            <div class="floating-ctrls" id="viewer-ctrls" style="display:none">
+                <div class="pill-btn" id="btn-clip" onclick="window.toggleClipper()">
+                    <i class="fa-solid fa-scissors"></i> Section Tool
+                </div>
+                <div class="pill-btn" id="btn-measure" onclick="window.toggleMeasure()">
+                    <i class="fa-solid fa-ruler-combined"></i> Measure
+                </div>
+                <div class="pill-btn" onclick="window.clearMeasures()" title="Clear Lines">
+                    <i class="fa-solid fa-eraser"></i>
+                </div>
+                <div class="pill-btn" onclick="window.resetCam()" title="Reset Camera">
+                    <i class="fa-solid fa-camera-rotate"></i>
+                </div>
+            </div>
+
+            <div id="canvas-wrap">
+                <div class="ph-box" id="viewer-ph">
+                    <div class="spinner" style="margin-bottom:2rem"></div>
+                    <p style="font-family:'Outfit'">Initializing Technical Engine...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Data Inspector -->
+        <div class="props-area">
+            <div class="side-head" style="padding:0 0 1rem 0; margin-bottom:1.5rem">
+                <span>Data Inspector</span>
+                <i class="fa-solid fa-list-check"></i>
+            </div>
+            <div id="props-wrap">
+                <div class="ph-box" style="height:auto">
+                    <i class="fa-solid fa-mouse-pointer" style="font-size:2rem"></i>
+                    <p style="font-size:0.7rem">Select a building element<br>to inspect BIM and metadata.</p>
+                </div>
+            </div>
+
+            <!-- Alignment Panel -->
+            <div id="align-panel" class="hidden">
+                <div class="align-panel">
+                    <span class="align-label">GLOBAL OFFSET CALIBRATION</span>
+                    <div id="align-target" style="font-size:0.6rem; color:var(--cyan); margin-bottom:12px; font-weight:700;"></div>
+                    
+                    <div class="align-inp-row">
+                        <span style="color:var(--txt-3); font-size:0.6rem;">X</span>
+                        <input type="number" id="off-x" class="align-fld" step="0.1" value="0" oninput="window.applyOffset()">
+                    </div>
+                    <div class="align-inp-row">
+                        <span style="color:var(--txt-3); font-size:0.6rem;">Y</span>
+                        <input type="number" id="off-y" class="align-fld" step="0.1" value="0" oninput="window.applyOffset()">
+                    </div>
+                    <div class="align-inp-row">
+                        <span style="color:var(--txt-3); font-size:0.6rem;">Z</span>
+                        <input type="number" id="off-z" class="align-fld" step="0.1" value="0" oninput="window.applyOffset()">
+                    </div>
+                    <div class="align-inp-row">
+                        <span style="color:var(--txt-3); font-size:0.6rem;">R</span>
+                        <input type="range" id="off-r" min="0" max="360" value="0" style="width:100%" oninput="window.applyOffset()">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="toasts"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import * as OBC from '@thatopen/components';
+        import * as OBF from '@thatopen/fragments';
+
+        const $ = id => document.getElementById(id);
+        let components, fragments, ifcLoader, world, clipper, highlighter, dimensions;
+        let loadedModels = [];
+        let activeAlignId = null;
+
+        async function init() {
+            try {
+                console.log("BIM: Initializing Components...");
+                components = new OBC.Components();
+                
+                const worlds = components.get(OBC.Worlds);
+                world = worlds.create();
+
+                console.log("BIM: Creating Scene...");
+                const scene = new OBC.SimpleScene(components);
+                scene.setup();
+                world.scene = scene;
+
+                console.log("BIM: Creating Renderer...");
+                const renderer = new OBC.SimpleRenderer(components, $('canvas-wrap'));
+                world.renderer = renderer;
+
+                console.log("BIM: Creating Camera...");
+                world.camera = new OBC.SimpleCamera(components);
+
+                console.log("BIM: Initializing Total System...");
+                components.init();
+
+                world.scene.three.background = new THREE.Color('#060b17');
+
+                console.log("BIM: Setting up Loaders...");
+                fragments = components.get(OBC.FragmentsManager);
+                ifcLoader = components.get(OBC.IfcLoader);
+                await ifcLoader.setup();
+
+                // --- Technical Tools Restoration ---
+                try {
+                    highlighter = components.get(OBC.Highlighter);
+                    highlighter.setup(world);
+                    highlighter.add('select', new THREE.Color('#00d4ff'));
+                    highlighter.add('hover', new THREE.Color('#f97316'));
+                    console.log("BIM: Highlighter Ready");
+                } catch (e) { console.error("Highlighter Error", e); }
+
+                try {
+                    clipper = components.get(OBC.Clipper);
+                    clipper.config.enabled = false;
+                    console.log("BIM: Clipper Ready");
+                } catch (e) { console.error("Clipper Error", e); }
+
+                try {
+                    dimensions = components.get(OBC.LengthMeasurement);
+                    dimensions.world = world;
+                    dimensions.enabled = false;
+                    console.log("BIM: Dimensions Ready");
+                } catch (e) { console.error("Dimensions Error", e); }
+
+                $('viewer-ph').classList.add('hidden');
+                $('viewer-ctrls').style.display = 'flex';
+
+                // --- Interactions ---
+                $('canvas-wrap').addEventListener('mousemove', () => {
+                   if (highlighter) highlighter.highlight('hover', false);
+                });
+
+                $('canvas-wrap').addEventListener('click', () => {
+                    if (!highlighter || (clipper && clipper.config.enabled) || (dimensions && dimensions.enabled)) return;
+                    const result = highlighter.highlight('select', true);
+                    if (result) {
+                        renderProps(result.id, result.fragmentID);
+                    } else {
+                        resetProps();
+                    }
+                });
+
+                $('canvas-wrap').addEventListener('dblclick', () => {
+                    if (clipper && clipper.config.enabled) clipper.create(world);
+                    if (dimensions && dimensions.enabled) dimensions.create();
+                });
+
+                toast('BIM Engine Ready', 'success');
+                console.log("BIM: Engine Stable.");
+
+            } catch (err) {
+                console.error("BIM: Initialization Failure", err);
+                toast("BIM Engine Failure: " + err.message, "error");
+            }
+        }
+
+        // --- Model Loading ---
+        window.handleUpload = async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            if (!ifcLoader) {
+                toast("BIM engine not ready", "error");
+                return;
+            }
+
+            for (const file of files) {
+                toast(`Processing: ${file.name}`, 'info');
+                try {
+                    const buffer = new Uint8Array(await file.arrayBuffer());
+                    const model = await ifcLoader.load(buffer, file.name);
+                    world.scene.three.add(model);
+                    
+                    loadedModels.push({
+                        uuid: model.uuid,
+                        name: file.name,
+                        visible: true,
+                        count: model.items.length
+                    });
+
+                    renderTree();
+                    window.resetCam();
+                } catch (err) {
+                    toast(`Failed: ${file.name}`, 'error');
+                    console.error("BIM: Multi-upload error", err);
+                }
+            }
+            toast(`${files.length} models integrated`, 'success');
+            e.target.value = '';
+        };
+
+        // --- Dashboard Logic ---
+        function renderTree() {
+            const cont = $('tree-cont');
+            if (loadedModels.length === 0) {
+                cont.innerHTML = '<div class="ph-box"><i class="fa-solid fa-folder-tree"></i><p style="font-size:0.75rem">No models loaded.</p></div>';
+                return;
+            }
+
+            cont.innerHTML = loadedModels.map(m => `
+                <div class="model-item">
+                    <div class="model-row">
+                        <span class="model-name">${m.name}</span>
+                        <div class="model-actions">
+                            <i class="fa-solid fa-arrows-to-circle" style="color:var(--orange)" onclick="window.openAlign('${m.uuid}')"></i>
+                            <i class="fa-solid ${m.visible ? 'fa-eye' : 'fa-eye-slash'}" onclick="window.toggleVis('${m.uuid}')"></i>
+                            <i class="fa-solid fa-trash-can" style="color:var(--pink)" onclick="window.removeModel('${m.uuid}')"></i>
+                        </div>
+                    </div>
+                    <div style="font-size:0.6rem; color:var(--txt-3)">
+                        <i class="fa-solid fa-cube"></i> ${m.count} elements extracted
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function renderProps(expressId, fragmentUID) {
+            const wrap = $('props-wrap');
+            wrap.innerHTML = '<div class="spinner" style="margin:2rem auto"></div>';
+            
+            try {
+                const fragment = fragments.list.get(fragmentUID);
+                if (!fragment) throw new Error("Fragment not found");
+                const model = fragment.group;
+                if (!model) throw new Error("Group not found");
+
+                const props = await model.getProperties(expressId);
+                
+                let html = `
+                    <div class="prop-section">
+                        <div class="prop-title">Core Identity</div>
+                        <div class="prop-row"><span class="prop-key">Name</span><span class="prop-val">${props.Name?.value || 'Unnamed'}</span></div>
+                        <div class="prop-row"><span class="prop-key">Express ID</span><span class="prop-val">${expressId}</span></div>
+                        <div class="prop-row"><span class="prop-key">Type</span><span class="prop-val">${props.type || 'Element'}</span></div>
+                        <div class="prop-row"><span class="prop-key">Global ID</span><span class="prop-val" style="font-size:0.55rem">${props.GlobalId?.value || 'N/A'}</span></div>
+                    </div>
+                `;
+                
+                // Add psets if available
+                if (props && typeof props === 'object') {
+                    for (const key in props) {
+                        if (typeof props[key] === 'object' && props[key].value !== undefined && key !== 'Name' && key !== 'GlobalId') {
+                             html += `<div class="prop-row"><span class="prop-key">${key}</span><span class="prop-val">${props[key].value}</span></div>`;
+                        }
+                    }
+                }
+
+                wrap.innerHTML = html;
+            } catch (e) { 
+                console.error("BIM: Prop Error", e);
+                wrap.innerHTML = '<p style="font-size:0.7rem; color:var(--pink)">Error fetching element data</p>'; 
+            }
+        }
+
+        function resetProps() {
+            $('props-wrap').innerHTML = '<div class="ph-box" style="height:auto"><i class="fa-solid fa-mouse-pointer" style="font-size:2rem"></i><p style="font-size:0.75rem">Select a building element</p></div>';
+        }
+
+        // --- Tools ---
+        window.toggleClipper = () => {
+            if (!clipper) return;
+            clipper.config.enabled = !clipper.config.enabled;
+            
+            if (clipper.config.enabled) {
+                if (dimensions) dimensions.enabled = false;
+                if (highlighter) highlighter.clear();
+                toast('Section Mode: Double-click to place plane', 'info');
+            }
+            
+            $('btn-clip').classList.toggle('active', clipper.config.enabled);
+            $('btn-measure').classList.remove('active');
+        };
+
+        window.toggleMeasure = () => {
+            if (!dimensions) return;
+            dimensions.enabled = !dimensions.enabled;
+            
+            if (dimensions.enabled) {
+                if (clipper) clipper.config.enabled = false;
+                if (highlighter) highlighter.clear();
+                toast('Measure Mode: Double-click to snap points', 'info');
+            }
+
+            $('btn-measure').classList.toggle('active', dimensions.enabled);
+            $('btn-clip').classList.remove('active');
+        };
+
+        window.clearMeasures = () => {
+            if (dimensions) dimensions.deleteAll();
+            if (clipper) clipper.deleteAll();
+            if (highlighter) highlighter.clear();
+            toast('Cleanup complete', 'info');
+        };
+        
+        window.resetCam = () => {
+            if (fragments.groups.size === 0) {
+                 world.camera.controls.setLookAt(20, 20, 20, 0, 0, 0, true);
+                 return;
+            }
+            const bbox = new THREE.Box3();
+            for (const [id, group] of fragments.groups) {
+                group.children.forEach(c => bbox.expandByObject(c));
+            }
+            world.camera.controls.fitToBox(bbox, true);
+        };
+        
+        window.toggleVis = (uuid) => {
+            const m = fragments.groups.get(uuid);
+            if (m) {
+                m.visible = !m.visible;
+                const meta = loadedModels.find(x => x.uuid === uuid);
+                meta.visible = m.visible;
+                renderTree();
+            }
+        };
+
+        window.removeModel = (uuid) => {
+            const m = fragments.groups.get(uuid);
+            if (m) {
+                fragments.disposeGroup(m);
+                loadedModels = loadedModels.filter(x => x.uuid !== uuid);
+                if (activeAlignId === uuid) $('align-panel').classList.add('hidden');
+                renderTree();
+                toast('Model evicted', 'info');
+            }
+        };
+
+        window.openAlign = (uuid) => {
+            activeAlignId = uuid;
+            const model = ifcLoader.models.find(m => m.uuid === uuid);
+            const meta = loadedModels.find(m => m.uuid === uuid);
+            if (!model) return;
+
+            $('align-panel').classList.remove('hidden');
+            $('align-target').innerText = `CALIBRATING: ${meta.name.toUpperCase()}`;
+            $('off-x').value = model.position.x;
+            $('off-y').value = model.position.y;
+            $('off-z').value = model.position.z;
+            $('off-r').value = (model.rotation.z * 180 / Math.PI) || 0;
+            $('align-panel').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.applyOffset = () => {
+            if (!activeAlignId) return;
+            const model = ifcLoader.models.find(m => m.uuid === activeAlignId);
+            if (!model) return;
+
+            model.position.x = parseFloat($('off-x').value) || 0;
+            model.position.y = parseFloat($('off-y').value) || 0;
+            model.position.z = parseFloat($('off-z').value) || 0;
+            model.rotation.z = (parseFloat($('off-r').value) || 0) * Math.PI / 180;
+        };
+
+        function toast(msg, type) {
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            const icon = type === 'success' ? 'fa-check' : (type === 'error' ? 'fa-xmark' : 'fa-circle-info');
+            el.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${msg}</span>`;
+            $('toasts').appendChild(el);
+            setTimeout(() => el.remove(), 4000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

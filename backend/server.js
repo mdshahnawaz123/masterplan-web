@@ -152,7 +152,7 @@ async function getModelProperties(token, urn) {
   );
   const guids = (treeRes.data.data?.metadata || []).map(m => m.guid);
   const allProps = [];
-  for (const guid of guids.slice(0, 5)) {
+  for (const guid of guids) {
     try {
       const propRes = await axios.get(
         `${APS_BASE}/modelderivative/v2/designdata/${urn}/metadata/${guid}/properties?forceget=true`,
